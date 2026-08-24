@@ -12,24 +12,6 @@ import java.util.Map;
 
 class JavaFxRuntimeHints implements RuntimeHintsRegistrar {
 
-	@Override
-	public void registerHints(RuntimeHints hints, @Nullable ClassLoader classLoader) {
-		var loader = classLoader != null ? classLoader : ClassUtils.getDefaultClassLoader();
-		var reflective = Hints.flatten(this.nativeCallbacks, this.prismShaders, this.effectPeers, this.publicApi,
-				this.toolkit);
-		Hints.classesInPackages(loader, reflective)
-			.forEach(type -> hints.reflection().registerType(type, Hints.EVERYTHING));
-		Hints.classesInPackages(loader, this.nativeCallbacks)
-			.forEach(type -> hints.jni().registerType(type, Hints.EVERYTHING));
-		this.nativeCallbackTypes.forEach(type -> {
-			hints.reflection().registerTypeIfPresent(loader, type, Hints.EVERYTHING);
-			hints.jni().registerTypeIfPresent(loader, type, Hints.EVERYTHING);
-		});
-		this.arrays.forEach(type -> hints.reflection().registerTypeIfPresent(loader, type, Hints.EVERYTHING));
-		for (var listOfResources : List.of(this.javafxResources, this.appResources))
-			listOfResources.forEach(hints.resources()::registerPattern);
-	}
-
 	private final List<String> nativeCallbacks = List.of("com.sun.glass.events", "com.sun.glass.ui",
 			"com.sun.glass.ui.delegate", "com.sun.glass.ui.headless", "com.sun.glass.ui.mac", "com.sun.glass.utils",
 			"com.sun.javafx.font.coretext");
@@ -76,5 +58,23 @@ class JavaFxRuntimeHints implements RuntimeHintsRegistrar {
 			"com/sun/javafx/scene/control/skin/modena/**", "com/sun/javafx/scene/control/skin/caspian/**",
 			"com/sun/javafx/scene/control/skin/resources/*.properties", "com/sun/javafx/tk/quantum/*.properties",
 			"com/sun/prism/es2/glsl/**", "com/sun/prism/mtl/msl/**", "com/sun/scenario/effect/impl/es2/glsl/**");
+
+	@Override
+	public void registerHints(RuntimeHints hints, @Nullable ClassLoader classLoader) {
+		var loader = classLoader != null ? classLoader : ClassUtils.getDefaultClassLoader();
+		var reflective = Hints.flatten(this.nativeCallbacks, this.prismShaders, this.effectPeers, this.publicApi,
+				this.toolkit);
+		Hints.classesInPackages(loader, reflective)
+			.forEach(type -> hints.reflection().registerType(type, Hints.EVERYTHING));
+		Hints.classesInPackages(loader, this.nativeCallbacks)
+			.forEach(type -> hints.jni().registerType(type, Hints.EVERYTHING));
+		this.nativeCallbackTypes.forEach(type -> {
+			hints.reflection().registerTypeIfPresent(loader, type, Hints.EVERYTHING);
+			hints.jni().registerTypeIfPresent(loader, type, Hints.EVERYTHING);
+		});
+		this.arrays.forEach(type -> hints.reflection().registerTypeIfPresent(loader, type, Hints.EVERYTHING));
+		for (var listOfResources : List.of(this.javafxResources, this.appResources))
+			listOfResources.forEach(hints.resources()::registerPattern);
+	}
 
 }
