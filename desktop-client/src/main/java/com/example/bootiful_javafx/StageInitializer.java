@@ -6,9 +6,6 @@ import javafx.scene.Scene;
 import javafx.scene.control.Button;
 import javafx.scene.control.Label;
 import javafx.scene.control.TextArea;
-import org.jspecify.annotations.Nullable;
-import org.springframework.aot.hint.RuntimeHints;
-import org.springframework.aot.hint.RuntimeHintsRegistrar;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.ImportRuntimeHints;
 import org.springframework.context.event.EventListener;
@@ -23,17 +20,8 @@ import java.util.concurrent.CountDownLatch;
 import static org.springframework.security.oauth2.client.web.client.RequestAttributeClientRegistrationIdResolver.clientRegistrationId;
 
 @Component
-@ImportRuntimeHints(StageInitializer.Hints.class)
+@ImportRuntimeHints(FxmlRuntimeHints.class)
 class StageInitializer {
-
-	static class Hints implements RuntimeHintsRegistrar {
-
-		@Override
-		public void registerHints(RuntimeHints hints, @Nullable ClassLoader classLoader) {
-			hints.resources().registerResource(FXML);
-		}
-
-	}
 
 	private final SystemBrowserOAuth2Login login;
 

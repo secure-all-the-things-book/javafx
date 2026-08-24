@@ -1,49 +1,34 @@
 package com.example.bootiful_javafx;
 
-import org.springframework.aot.hint.MemberCategory;
+import org.jspecify.annotations.Nullable;
 import org.springframework.aot.hint.RuntimeHints;
 import org.springframework.aot.hint.RuntimeHintsRegistrar;
-import org.springframework.aot.hint.TypeReference;
-import org.springframework.core.io.support.PathMatchingResourcePatternResolver;
-import org.springframework.core.io.support.ResourcePatternResolver;
-import org.springframework.core.type.classreading.CachingMetadataReaderFactory;
 import org.springframework.util.ClassUtils;
 
-import java.io.IOException;
-import java.io.UncheckedIOException;
-import java.util.*;
-import java.util.stream.Collectors;
-import java.util.stream.Stream;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 
 class JavaFxRuntimeHints implements RuntimeHintsRegistrar {
 
 	@Override
-	public void registerHints(RuntimeHints hints, ClassLoader classLoader) {
-		var reflective = types(this.nativeCallbacks, this.prismShaders, this.effectPeers, this.publicApi, this.toolkit);
-		this.findClassesInPackages(classLoader, reflective)
-			.forEach(type -> hints.reflection().registerType(type, this.everything));
-		this.findClassesInPackages(classLoader, this.nativeCallbacks)
-			.forEach(type -> hints.jni().registerType(type, this.everything));
+	public void registerHints(RuntimeHints hints, @Nullable ClassLoader classLoader) {
+		var loader = classLoader != null ? classLoader : ClassUtils.getDefaultClassLoader();
+		var reflective = Hints.flatten(this.nativeCallbacks, this.prismShaders, this.effectPeers, this.publicApi,
+				this.toolkit);
+		Hints.classesInPackages(loader, reflective)
+			.forEach(type -> hints.reflection().registerType(type, Hints.EVERYTHING));
+		Hints.classesInPackages(loader, this.nativeCallbacks)
+			.forEach(type -> hints.jni().registerType(type, Hints.EVERYTHING));
 		this.nativeCallbackTypes.forEach(type -> {
-			hints.reflection().registerTypeIfPresent(classLoader, type, this.everything);
-			hints.jni().registerTypeIfPresent(classLoader, type, this.everything);
+			hints.reflection().registerTypeIfPresent(loader, type, Hints.EVERYTHING);
+			hints.jni().registerTypeIfPresent(loader, type, Hints.EVERYTHING);
 		});
-		this.arrays.forEach(type -> hints.reflection().registerTypeIfPresent(classLoader, type, this.everything));
+		this.arrays.forEach(type -> hints.reflection().registerTypeIfPresent(loader, type, Hints.EVERYTHING));
 		for (var listOfResources : List.of(this.javafxResources, this.appResources))
 			listOfResources.forEach(hints.resources()::registerPattern);
 	}
-
-	private final MemberCategory[] everything = Stream.of(MemberCategory.values()) //
-		.filter(category -> {//
-			try {
-				return !MemberCategory.class.getField(category.name()) //
-					.isAnnotationPresent(Deprecated.class);
-			} //
-			catch (NoSuchFieldException noSuchField) {
-				throw new IllegalStateException(noSuchField);
-			}
-		}) //
-		.toArray(MemberCategory[]::new);
 
 	private final List<String> nativeCallbacks = List.of("com.sun.glass.events", "com.sun.glass.ui",
 			"com.sun.glass.ui.delegate", "com.sun.glass.ui.headless", "com.sun.glass.ui.mac", "com.sun.glass.utils",
@@ -73,11 +58,12 @@ class JavaFxRuntimeHints implements RuntimeHintsRegistrar {
 	/*
 	 * these are types used by JNI. Some of them are the same as in the reflection hints.
 	 */
-	private final List<String> nativeCallbackTypes = types(
-			classSet(Runnable.class, Boolean.class, Class.class, Integer.class, Double.class, Float.class, Byte.class,
-					Character.class, Long.class, Object.class, String.class),
-			classSet(Collections.class, HashMap.class, List.class, Map.class), classSet(javafx.scene.paint.Color.class),
-			classSet(javafx.scene.shape.LineTo.class, javafx.scene.shape.MoveTo.class),
+	private final List<String> nativeCallbackTypes = Hints.flatten(
+			Hints.classNames(Runnable.class, Boolean.class, Class.class, Integer.class, Double.class, Float.class,
+					Byte.class, Character.class, Long.class, Object.class, String.class),
+			Hints.classNames(Collections.class, HashMap.class, List.class, Map.class),
+			Hints.classNames(javafx.scene.paint.Color.class),
+			Hints.classNames(javafx.scene.shape.LineTo.class, javafx.scene.shape.MoveTo.class),
 			List.of("sun.management.VMManagementImpl"));
 
 	/* `getCanonicalName`, not `getName`: for an array */
@@ -90,44 +76,5 @@ class JavaFxRuntimeHints implements RuntimeHintsRegistrar {
 			"com/sun/javafx/scene/control/skin/modena/**", "com/sun/javafx/scene/control/skin/caspian/**",
 			"com/sun/javafx/scene/control/skin/resources/*.properties", "com/sun/javafx/tk/quantum/*.properties",
 			"com/sun/prism/es2/glsl/**", "com/sun/prism/mtl/msl/**", "com/sun/scenario/effect/impl/es2/glsl/**");
-
-	private Set<String> classSet(Class<?>... classes) {
-		return Stream.of(classes).map(Class::getName).collect(Collectors.toUnmodifiableSet());
-	}
-
-	private Set<TypeReference> findClassesInPackages(ClassLoader classLoader, Collection<String> packageNames) {
-		var resolver = new PathMatchingResourcePatternResolver(classLoader);
-		var metadataReaderFactory = new CachingMetadataReaderFactory(resolver);
-		var classNames = new TreeSet<String>();
-		for (var packageName : packageNames) {
-			var pattern = ResourcePatternResolver.CLASSPATH_ALL_URL_PREFIX
-					+ ClassUtils.convertClassNameToResourcePath(packageName) + "/*.class";
-			try {
-				for (var resource : resolver.getResources(pattern)) {
-					if (!resource.isReadable() || isSynthetic(resource.getFilename())) {
-						continue;
-					}
-					var metadata = metadataReaderFactory.getMetadataReader(resource).getClassMetadata();
-					classNames.add(metadata.getClassName());
-				}
-			} //
-			catch (IOException ioException) {
-				throw new UncheckedIOException("could not scan [" + packageName + "]", ioException);
-			}
-		}
-		return classNames//
-			.stream() //
-			.map(TypeReference::of) //
-			.collect(Collectors.toUnmodifiableSet());
-	}
-
-	@SafeVarargs
-	private List<String> types(Collection<String>... groups) {
-		return Stream.of(groups).flatMap(Collection::stream).toList();
-	}
-
-	private boolean isSynthetic(String filename) {
-		return filename == null || filename.startsWith("package-info") || filename.startsWith("module-info");
-	}
 
 }
