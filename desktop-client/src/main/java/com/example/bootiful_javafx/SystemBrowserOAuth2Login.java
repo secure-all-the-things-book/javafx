@@ -15,13 +15,10 @@ import org.springframework.security.oauth2.client.oidc.userinfo.OidcUserService;
 import org.springframework.security.oauth2.client.registration.ClientRegistration;
 import org.springframework.security.oauth2.client.registration.ClientRegistrationRepository;
 import org.springframework.security.oauth2.client.web.OAuth2AuthorizationRequestCustomizers;
-import org.springframework.security.oauth2.core.OAuth2AuthorizationException;
-import org.springframework.security.oauth2.core.OAuth2Error;
 import org.springframework.security.oauth2.core.endpoint.*;
 import org.springframework.security.oauth2.core.oidc.OidcIdToken;
 import org.springframework.security.oauth2.core.oidc.endpoint.OidcParameterNames;
 import org.springframework.stereotype.Service;
-import org.springframework.util.Assert;
 
 import java.util.Base64;
 import java.util.Map;
@@ -59,35 +56,7 @@ class SystemBrowserOAuth2Login {
 	}
 
 	void start(String registrationId) {
-		var request = this.authorizationRequest(registration(registrationId));
-		this.inFlight.set(request);
-		this.browser.open(request.getAuthorizationRequestUri());
-	}
-
-	/*
-	 * The other half, one browser round trip later: check that this is the answer to the
-	 * question we asked, then trade the authorization code for tokens. Runs on the thread
-	 * serving the redirect.
-	 */
-	UserSignedInEvent finish(String registrationId, Map<String, String> parameters) {
-		var request = this.inFlight.getAndSet(null);
-		if (request == null)
-			throw new OAuth2AuthorizationException(new OAuth2Error("no_sign_in_in_flight"));
-		var response = this.authorizationResponse(request, parameters);
-		var exchange = new OAuth2AuthorizationExchange(request, response);
-		var event = new UserSignedInEvent(exchange(registration(registrationId), exchange));
-		this.events.publishEvent(event);
-		return event;
-	}
-
-	private ClientRegistration registration(String registrationId) {
 		var registration = this.registrations.findByRegistrationId(registrationId);
-		Assert.notNull(registration, () -> "there is no client registration called [" + registrationId + "]");
-		return registration;
-	}
-
-	private OAuth2AuthorizationRequest authorizationRequest(ClientRegistration registration) {
-		Assert.notNull(registration.getProviderDetails().getAuthorizationUri(), "the authorization URI is null");
 		var builder = OAuth2AuthorizationRequest.authorizationCode()
 			.clientId(registration.getClientId())
 			.authorizationUri(registration.getProviderDetails().getAuthorizationUri())
@@ -95,16 +64,22 @@ class SystemBrowserOAuth2Login {
 			.scopes(registration.getScopes())
 			.state(state.generateKey());
 		OAuth2AuthorizationRequestCustomizers.withPkce().accept(builder);
-		return builder.build();
+		var request = builder.build();
+		this.inFlight.set(request);
+		this.browser.open(request.getAuthorizationRequestUri());
 	}
 
-	private OAuth2AuthorizationResponse authorizationResponse(OAuth2AuthorizationRequest request,
-			Map<String, String> parameters) {
-		var state = parameters.get(OAuth2ParameterNames.STATE);
-		return OAuth2AuthorizationResponse.success(parameters.get(OAuth2ParameterNames.CODE))
+	UserSignedInEvent finish(String registrationId, Map<String, String> parameters) {
+		var request = this.inFlight.getAndSet(null);
+		var state1 = parameters.get(OAuth2ParameterNames.STATE);
+		var response = OAuth2AuthorizationResponse.success(parameters.get(OAuth2ParameterNames.CODE))
 			.redirectUri(Objects.requireNonNull(request.getRedirectUri()))
-			.state(state)
+			.state(state1)
 			.build();
+		var exchange = new OAuth2AuthorizationExchange(request, response);
+		var event = new UserSignedInEvent(exchange(this.registrations.findByRegistrationId(registrationId), exchange));
+		this.events.publishEvent(event);
+		return event;
 	}
 
 	private OAuth2AuthenticationToken exchange(ClientRegistration registration, OAuth2AuthorizationExchange exchange) {

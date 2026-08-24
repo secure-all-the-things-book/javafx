@@ -29,14 +29,12 @@ class SystemBrowserOAuth2AuthorizedClientProvider implements OAuth2AuthorizedCli
 
 	private final OAuth2AuthorizedClientService authorizedClients;
 
-	private final Duration timeout;
+	private final Duration timeout = Duration.ofMinutes(2);
 
 	SystemBrowserOAuth2AuthorizedClientProvider(SystemBrowserOAuth2Login login,
-			OAuth2AuthorizedClientService authorizedClients,
-			@Value("${bootiful.oauth2.login-timeout:2m}") Duration timeout) {
+			OAuth2AuthorizedClientService authorizedClients) {
 		this.login = login;
 		this.authorizedClients = authorizedClients;
-		this.timeout = timeout;
 	}
 
 	@EventListener
