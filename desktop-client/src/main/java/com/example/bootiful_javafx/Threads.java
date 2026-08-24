@@ -6,6 +6,11 @@ import java.util.function.Consumer;
 
 class Threads {
 
+	static void offTheFxThread(Runnable runnable) {
+		offTheFxThread(runnable, _ -> {
+		});
+	}
+
 	static void offTheFxThread(Runnable runnable, Consumer<Throwable> onFailure) {
 		Thread.ofVirtual() //
 			.name("bootiful-javafx-worker") //

@@ -1,27 +1,39 @@
 package com.example.bootiful_javafx;
 
-import javafx.geometry.Insets;
-import javafx.geometry.Pos;
+import javafx.fxml.FXMLLoader;
+import javafx.scene.Parent;
 import javafx.scene.Scene;
 import javafx.scene.control.Button;
 import javafx.scene.control.Label;
 import javafx.scene.control.TextArea;
-import javafx.scene.layout.HBox;
-import javafx.scene.layout.VBox;
+import org.jspecify.annotations.Nullable;
+import org.springframework.aot.hint.RuntimeHints;
+import org.springframework.aot.hint.RuntimeHintsRegistrar;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.context.annotation.ImportRuntimeHints;
 import org.springframework.context.event.EventListener;
+import org.springframework.core.io.ClassPathResource;
+import org.springframework.core.io.Resource;
 import org.springframework.stereotype.Component;
-import org.springframework.util.StringUtils;
 import org.springframework.web.client.RestClient;
 
 import java.util.Map;
-import java.util.Objects;
 import java.util.concurrent.CountDownLatch;
 
 import static org.springframework.security.oauth2.client.web.client.RequestAttributeClientRegistrationIdResolver.clientRegistrationId;
 
 @Component
+@ImportRuntimeHints(StageInitializer.Hints.class)
 class StageInitializer {
+
+	static class Hints implements RuntimeHintsRegistrar {
+
+		@Override
+		public void registerHints(RuntimeHints hints, @Nullable ClassLoader classLoader) {
+			hints.resources().registerResource(FXML);
+		}
+
+	}
 
 	private final SystemBrowserOAuth2Login login;
 
@@ -39,6 +51,8 @@ class StageInitializer {
 
 	private Button signIn, call;
 
+	static final Resource FXML = new ClassPathResource("/fxml/ui.fxml");
+
 	StageInitializer(SystemBrowserOAuth2Login login, //
 			RestClient http, //
 			@Value("${bootiful.oauth2.registration-id}") String registrationId, //
@@ -50,32 +64,23 @@ class StageInitializer {
 	}
 
 	@EventListener
-	void on(StageReadyEvent event) {
-		this.greeting = new Label("Hello, stranger.");
-		this.greeting.getStyleClass().add("greeting");
-
-		this.status = new Label("not signed in");
-		this.status.getStyleClass().add("subtle");
-
-		this.output = new TextArea();
-		this.output.setEditable(false);
-		this.output.setWrapText(true);
-		this.output.setPrefRowCount(10);
-
-		this.signIn = new Button("Sign in with your browser");
-		this.signIn.setDefaultButton(true);
-
-		this.call = new Button("Call the API");
-		this.call.setDisable(true);
+	void on(StageReadyEvent event) throws Exception {
+		var loader = new FXMLLoader();
+		var root = (Parent) null;
+		try (var fxmlInputStream = FXML.getInputStream()) {
+			root = loader.load(fxmlInputStream);
+		}
+		var scene = new Scene(root);
+		this.greeting = (Label) scene.lookup("#greeting");
+		this.status = (Label) scene.lookup("#status");
+		this.output = (TextArea) scene.lookup("#output");
+		this.signIn = (Button) scene.lookup("#signIn");
+		this.call = (Button) scene.lookup("#call");
 
 		this.signIn.setOnAction(e -> {
 			this.status.setText("finish signing in over in your browser...");
 			Threads.offTheFxThread(() -> {
 				this.login.start(this.registrationId);
-			}, failure -> {
-				this.status.setText("sign-in failed");
-				var message = failure.getMessage();
-				this.output.setText(failure.getClass().getSimpleName() + (message != null ? ": " + message : ""));
 			});
 		});
 
@@ -83,7 +88,6 @@ class StageInitializer {
 			this.call.setDisable(true);
 			this.status.setText("calling " + this.api + "...");
 			Threads.offTheFxThread(() -> {
-				// no token found
 				var body = this.http //
 					.get() //
 					.uri(this.api) //
@@ -95,29 +99,14 @@ class StageInitializer {
 					this.output.setText(body);
 					this.call.setDisable(false);
 				});
-			}, failure -> {
-				this.status.setText("the call failed");
-				this.call.setDisable(false);
-				var message = StringUtils.hasText(failure.getMessage()) ? failure.getMessage() : "";
-				IO.println(failure.getClass().getSimpleName() + message);
 			});
 		});
-
-		var buttons = new HBox(12, this.signIn, this.call);
-		buttons.setAlignment(Pos.CENTER);
-
-		var layout = new VBox(12, this.greeting, this.status, buttons, this.output);
-		layout.setAlignment(Pos.CENTER);
-		layout.setPadding(new Insets(32));
-
-		var scene = new Scene(layout, 620, 480);
-		scene.getStylesheets().add(Objects.requireNonNull(getClass().getResource("/styles.css")).toExternalForm());
 
 		var stage = event.stage();
 		stage.setTitle("JavaFX + Spring Boot + GraalVM");
 		stage.setScene(scene);
-		stage.setOnHidden(e -> System.exit(0));
-		stage.setOnShown(e -> IO.println("stage shown"));
+		stage.setOnHidden(_ -> System.exit(0));
+		stage.setOnShown(_ -> IO.println("stage shown"));
 		stage.show();
 	}
 

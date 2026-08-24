@@ -4,8 +4,6 @@ import org.springframework.stereotype.Component;
 
 import java.io.IOException;
 import java.util.List;
-import java.util.Locale;
-import java.util.Map;
 
 @Component
 class SystemBrowser implements AuthorizationBrowser {
@@ -13,7 +11,7 @@ class SystemBrowser implements AuthorizationBrowser {
 	@Override
 	public void open(String authorizationRequestUri) {
 		try {
-			var command = this.buildCommand(authorizationRequestUri);
+			var command = List.of("open", authorizationRequestUri);
 			new ProcessBuilder(command)//
 				.start();
 		} //
@@ -22,16 +20,10 @@ class SystemBrowser implements AuthorizationBrowser {
 		}
 	}
 
-	private List<String> buildCommand(String authorizationRequestUri) {
-		var os = System.getProperty("os.name", "").toLowerCase(Locale.ROOT);
-		var mapping = Map.of(//
-				"mac", List.of("open", authorizationRequestUri), //
-				"win", List.of("rundll32", "url.dll,FileProtocolHandler", authorizationRequestUri)//
-		);
-		for (var osKey : mapping.keySet())
-			if (os.contains(osKey))
-				return mapping.get(osKey);
-		return List.of("xdg-open", authorizationRequestUri);
-	}
+}
+
+interface AuthorizationBrowser {
+
+	void open(String authorizationRequestUri);
 
 }
