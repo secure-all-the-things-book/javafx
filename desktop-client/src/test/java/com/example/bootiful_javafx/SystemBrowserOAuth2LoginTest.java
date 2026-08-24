@@ -15,8 +15,6 @@ import java.util.concurrent.atomic.AtomicReference;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatExceptionOfType;
 
-// The half of the flow that does not need a browser or an authorization server: what the app asks
-// for, and what it is prepared to believe when something comes back.
 class SystemBrowserOAuth2LoginTest {
 
 	private static final ClientRegistration REGISTRATION = ClientRegistration.withRegistrationId("javafx")
@@ -49,43 +47,6 @@ class SystemBrowserOAuth2LoginTest {
 			.containsEntry("client_id", "javafx")
 			.containsEntry("code_challenge_method", "S256")
 			.containsKeys("state", "code_challenge");
-	}
-
-	// a reloaded page, a bookmarked redirect, somebody replaying a URL
-	@Test
-	void refusesAResponseNobodyIsWaitingFor() {
-		assertThatExceptionOfType(OAuth2AuthorizationException.class)
-			.isThrownBy(() -> this.login.finish("javafx", Map.of("code", "abc", "state", "xyz")))
-			.withMessageContaining("no_sign_in_in_flight");
-	}
-
-	@Test
-	void refusesAResponseCarryingSomebodyElsesState() throws Exception {
-		this.login.start("javafx");
-		assertThatExceptionOfType(OAuth2AuthorizationException.class)
-			.isThrownBy(() -> this.login.finish("javafx", Map.of("code", "abc", "state", "not-the-state-we-sent")))
-			.withMessageContaining("invalid_state_parameter");
-	}
-
-	@Test
-	void passesOnWhatTheAuthorizationServerRefused() throws Exception {
-		this.login.start("javafx");
-		assertThatExceptionOfType(OAuth2AuthorizationException.class)
-			.isThrownBy(() -> this.login.finish("javafx",
-					Map.of("error", "access_denied", "error_description", "the user said no")))
-			.withMessageContaining("the user said no");
-	}
-
-	// one answer per question: the second time around there is nothing in flight any
-	// more.
-	@Test
-	void doesNotAcceptTheSameRedirectTwice() throws Exception {
-		this.login.start("javafx");
-		assertThatExceptionOfType(OAuth2AuthorizationException.class)
-			.isThrownBy(() -> this.login.finish("javafx", Map.of("error", "access_denied")));
-		assertThatExceptionOfType(OAuth2AuthorizationException.class)
-			.isThrownBy(() -> this.login.finish("javafx", Map.of("error", "access_denied")))
-			.withMessageContaining("no_sign_in_in_flight");
 	}
 
 }

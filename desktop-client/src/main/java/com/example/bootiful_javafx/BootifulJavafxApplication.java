@@ -21,7 +21,6 @@ import org.springframework.web.client.RestClient;
 
 @SpringBootApplication(exclude = { ServletWebSecurityAutoConfiguration.class, SecurityFilterAutoConfiguration.class,
 		UserDetailsServiceAutoConfiguration.class, OAuth2ClientWebSecurityAutoConfiguration.class })
-@ImportRuntimeHints(JavaFxRuntimeHints.class)
 public class BootifulJavafxApplication {
 
 	public static void main(String[] args) {

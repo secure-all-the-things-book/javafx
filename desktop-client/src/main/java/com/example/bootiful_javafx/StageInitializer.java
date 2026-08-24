@@ -6,49 +6,35 @@ import javafx.scene.Scene;
 import javafx.scene.control.Button;
 import javafx.scene.control.Label;
 import javafx.scene.control.TextArea;
-import org.springframework.beans.factory.annotation.Value;
-import org.springframework.context.annotation.ImportRuntimeHints;
 import org.springframework.context.event.EventListener;
 import org.springframework.core.io.ClassPathResource;
 import org.springframework.core.io.Resource;
 import org.springframework.stereotype.Component;
-import org.springframework.web.client.RestClient;
 
 import java.util.Map;
-import java.util.concurrent.CountDownLatch;
-
-import static org.springframework.security.oauth2.client.web.client.RequestAttributeClientRegistrationIdResolver.clientRegistrationId;
 
 @Component
-@ImportRuntimeHints(FxmlRuntimeHints.class)
 class StageInitializer {
 
 	private final SystemBrowserOAuth2Login login;
 
-	private final RestClient http;
-
-	private final String registrationId;
-
-	private final String api;
-
-	private final CountDownLatch signedIn = new CountDownLatch(1);
-
-	private Label greeting, status;
+	private Label greeting;
 
 	private TextArea output;
 
 	private Button signIn, call;
 
+	private final UserinfoClient userinfoClient;
+
 	static final Resource FXML = new ClassPathResource("/fxml/ui.fxml");
 
+	static final String CLIENT_REGISTRATION_ID = "javafx";
+
 	StageInitializer(SystemBrowserOAuth2Login login, //
-			RestClient http, //
-			@Value("${bootiful.oauth2.registration-id}") String registrationId, //
-			@Value("${bootiful.api-uri}") String api) {
+			UserinfoClient userinfoClient //
+	) {
 		this.login = login;
-		this.http = http;
-		this.registrationId = registrationId;
-		this.api = api;
+		this.userinfoClient = userinfoClient;
 	}
 
 	@EventListener
@@ -60,30 +46,17 @@ class StageInitializer {
 		}
 		var scene = new Scene(root);
 		this.greeting = (Label) scene.lookup("#greeting");
-		this.status = (Label) scene.lookup("#status");
 		this.output = (TextArea) scene.lookup("#output");
 		this.signIn = (Button) scene.lookup("#signIn");
 		this.call = (Button) scene.lookup("#call");
-
 		this.signIn.setOnAction(e -> {
-			this.status.setText("finish signing in over in your browser...");
-			Threads.offTheFxThread(() -> {
-				this.login.start(this.registrationId);
-			});
+			Threads.offTheFxThread(() -> this.login.start(CLIENT_REGISTRATION_ID));
 		});
-
 		this.call.setOnAction(e -> {
 			this.call.setDisable(true);
-			this.status.setText("calling " + this.api + "...");
 			Threads.offTheFxThread(() -> {
-				var body = this.http //
-					.get() //
-					.uri(this.api) //
-					.attributes(clientRegistrationId(this.registrationId))//
-					.retrieve()//
-					.body(String.class);
+				var body = this.userinfoClient.get();
 				Threads.onTheFxThread(() -> {
-					this.status.setText("200 from " + this.api);
 					this.output.setText(body);
 					this.call.setDisable(false);
 				});
@@ -94,7 +67,6 @@ class StageInitializer {
 		stage.setTitle("JavaFX + Spring Boot + GraalVM");
 		stage.setScene(scene);
 		stage.setOnHidden(_ -> System.exit(0));
-		stage.setOnShown(_ -> IO.println("stage shown"));
 		stage.show();
 	}
 
@@ -102,21 +74,17 @@ class StageInitializer {
 	void on(UserSignedInEvent event) {
 		Threads.onTheFxThread(() -> {
 			this.greeting.setText("Hello, " + event.name() + ".");
-			this.status
-				.setText("signed in via '%s'".formatted(event.authentication().getAuthorizedClientRegistrationId()));
 			this.output.setText(claims(event.user().getClaims()));
 			this.call.setDisable(false);
-			this.signedIn.countDown();
 		});
 	}
 
-	private static String claims(Map<String, Object> claims) {
-		return claims.entrySet()
-			.stream()
-			.map(claim -> "%s: %s".formatted(claim.getKey(), claim.getValue()))
-			.sorted()
-			.reduce((a, b) -> a + System.lineSeparator() + b)
-			.orElse("");
+	private String claims(Map<String, Object> claims) {
+		var claimsString = new StringBuilder();
+		var template = "%s: %s" + System.lineSeparator();
+		for (var entry : claims.entrySet())
+			claimsString.append(template.formatted(entry.getKey(), entry.getValue()));
+		return claimsString.toString();
 	}
 
 }

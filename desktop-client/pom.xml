@@ -22,8 +22,6 @@
         <spring-modulith.version>2.1.0</spring-modulith.version>
     </properties>
     <dependencies>
-        <!-- javafx-controls transitively brings in javafx-base and javafx-graphics.
-               The OpenJFX poms auto-detect the platform classifier (mac-aarch64, linux, win). -->
         <dependency>
             <groupId>org.openjfx</groupId>
             <artifactId>javafx-controls</artifactId>
@@ -38,8 +36,6 @@
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-restclient</artifactId>
         </dependency>
-        <!-- embedded Tomcat and Mustache, for the one page this desktop app serves: the redirect
-             the browser lands on at the end of the authorization code flow. -->
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-webmvc</artifactId>
@@ -72,6 +68,13 @@
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-webmvc-test</artifactId>
             <scope>test</scope>
+        </dependency>
+
+        
+        <dependency>
+            <groupId>com.joshlong</groupId>
+            <artifactId>hints</artifactId>
+            <version>0.0.16</version>    
         </dependency>
     </dependencies>
     <build>
