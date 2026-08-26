@@ -9,7 +9,7 @@
         <!-- lookup parent from repository -->
     </parent>
     <groupId>com.secureallthethingsbook</groupId>
-    <artifactId>bootiful-javafx</artifactId>
+    <artifactId>desktop-client</artifactId>
     <version>0.0.1-SNAPSHOT</version>
     <name/>
     <description/>
