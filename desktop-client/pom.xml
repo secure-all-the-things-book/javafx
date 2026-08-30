@@ -69,12 +69,10 @@
             <artifactId>spring-boot-starter-webmvc-test</artifactId>
             <scope>test</scope>
         </dependency>
-
-        
         <dependency>
             <groupId>com.joshlong</groupId>
             <artifactId>hints</artifactId>
-            <version>0.0.16</version>    
+            <version>0.0.16</version>
         </dependency>
     </dependencies>
     <build>
