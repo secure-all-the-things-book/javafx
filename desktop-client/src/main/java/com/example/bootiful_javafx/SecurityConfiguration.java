@@ -1,15 +1,7 @@
 package com.example.bootiful_javafx;
 
-import javafx.application.Platform;
-import javafx.stage.Stage;
-import org.springframework.boot.autoconfigure.SpringBootApplication;
-import org.springframework.boot.builder.SpringApplicationBuilder;
-import org.springframework.boot.security.autoconfigure.UserDetailsServiceAutoConfiguration;
-import org.springframework.boot.security.autoconfigure.web.servlet.SecurityFilterAutoConfiguration;
-import org.springframework.boot.security.autoconfigure.web.servlet.ServletWebSecurityAutoConfiguration;
-import org.springframework.boot.security.oauth2.client.autoconfigure.servlet.OAuth2ClientWebSecurityAutoConfiguration;
 import org.springframework.context.annotation.Bean;
-import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.context.annotation.Configuration;
 import org.springframework.security.oauth2.client.AuthorizedClientServiceOAuth2AuthorizedClientManager;
 import org.springframework.security.oauth2.client.OAuth2AuthorizedClientManager;
 import org.springframework.security.oauth2.client.OAuth2AuthorizedClientProviderBuilder;
@@ -18,22 +10,20 @@ import org.springframework.security.oauth2.client.registration.ClientRegistratio
 import org.springframework.security.oauth2.client.web.client.OAuth2ClientHttpRequestInterceptor;
 import org.springframework.security.oauth2.client.web.client.support.OAuth2RestClientHttpServiceGroupConfigurer;
 import org.springframework.web.client.RestClient;
-import org.springframework.web.service.registry.ImportHttpServices;
 
-@ImportHttpServices(UserinfoClient.class)
-@SpringBootApplication(exclude = { ServletWebSecurityAutoConfiguration.class, SecurityFilterAutoConfiguration.class,
-		UserDetailsServiceAutoConfiguration.class, OAuth2ClientWebSecurityAutoConfiguration.class })
-public class BootifulJavafxApplication {
+/**
+ * Everything Spring Security needs to know about a single-tenant, browser-driven,
+ * public-client desktop application.
+ */
+@Configuration
+class SecurityConfiguration {
 
-	public static void main(String[] args) {
-		SecurityContextHolder.setStrategyName(SecurityContextHolder.MODE_GLOBAL);
-		var applicationContext = new SpringApplicationBuilder()//
-			.sources(BootifulJavafxApplication.class)//
-			.headless(false)//
-			.run(args);
-		Platform.startup(() -> applicationContext.publishEvent(new StageReadyEvent(new Stage())));
-	}
-
+	/**
+	 * The manager Spring Security asks for a token. There is no
+	 * {@code HttpServletRequest} to hang an authorized client off of here, so this is the
+	 * *service*-backed manager, and the providers are: refresh the token if we can,
+	 * otherwise send the user to the system browser.
+	 */
 	@Bean
 	OAuth2AuthorizedClientManager authorizedClientManager(ClientRegistrationRepository registrations,
 			OAuth2AuthorizedClientService authorizedClients, SystemBrowserOAuth2AuthorizedClientProvider browser) {
@@ -43,15 +33,24 @@ public class BootifulJavafxApplication {
 		return manager;
 	}
 
+	/**
+	 * For hand-rolled calls: an interceptor that attaches the {@code Authorization}
+	 * header to any request carrying a client-registration-id attribute.
+	 */
 	@Bean
 	RestClient restClient(RestClient.Builder builder, OAuth2AuthorizedClientManager authorizedClientManager) {
 		return builder.requestInterceptor(new OAuth2ClientHttpRequestInterceptor(authorizedClientManager)).build();
 	}
 
+	/**
+	 * For the declarative {@code @GetExchange} clients: this is what makes
+	 * {@code @ClientRegistrationId} mean anything. Define it once per JVM - no more, no
+	 * less.
+	 */
 	@Bean
 	OAuth2RestClientHttpServiceGroupConfigurer oauth2RestClientConfigurer(
-			OAuth2AuthorizedClientManager auth2AuthorizedClientManager) {
-		return OAuth2RestClientHttpServiceGroupConfigurer.from(auth2AuthorizedClientManager);
+			OAuth2AuthorizedClientManager authorizedClientManager) {
+		return OAuth2RestClientHttpServiceGroupConfigurer.from(authorizedClientManager);
 	}
 
 }

@@ -21,9 +21,3 @@ class SystemBrowser implements AuthorizationBrowser {
 	}
 
 }
-
-interface AuthorizationBrowser {
-
-	void open(String authorizationRequestUri);
-
-}

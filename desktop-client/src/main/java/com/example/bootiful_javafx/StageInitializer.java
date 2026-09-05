@@ -6,6 +6,7 @@ import javafx.scene.Scene;
 import javafx.scene.control.Button;
 import javafx.scene.control.Label;
 import javafx.scene.control.TextArea;
+import org.springframework.core.env.Environment;
 import org.springframework.context.event.EventListener;
 import org.springframework.core.io.ClassPathResource;
 import org.springframework.core.io.Resource;
@@ -16,25 +17,28 @@ import java.util.Map;
 @Component
 class StageInitializer {
 
+	static final String CLIENT_REGISTRATION_ID = "javafx";
+
+	private final Resource fxml = new ClassPathResource("/fxml/ui.fxml");
+
 	private final SystemBrowserOAuth2Login login;
+
+	private final MessageClient messageClient;
+
+	private final Environment environment;
 
 	private Label greeting;
 
 	private TextArea output;
 
+	private Button signIn;
+
 	private Button call;
 
-	private final UserinfoClient userinfoClient;
-
-	private final Resource fxml = new ClassPathResource("/fxml/ui.fxml");
-
-	static final String CLIENT_REGISTRATION_ID = "javafx";
-
-	StageInitializer(SystemBrowserOAuth2Login login, //
-			UserinfoClient userinfoClient //
-	) {
+	StageInitializer(SystemBrowserOAuth2Login login, MessageClient messageClient, Environment environment) {
 		this.login = login;
-		this.userinfoClient = userinfoClient;
+		this.messageClient = messageClient;
+		this.environment = environment;
 	}
 
 	@EventListener
@@ -46,31 +50,30 @@ class StageInitializer {
 		}
 		var scene = new Scene(root);
 
+		// like document.getElementById, but for the scene graph
 		this.greeting = (Label) scene.lookup("#greeting");
 		this.output = (TextArea) scene.lookup("#output");
-
-		((Button) scene.lookup("#signIn")) //
-			.setOnAction(e -> Threads.offTheFxThread(() -> this.login.start(CLIENT_REGISTRATION_ID)));
-
+		this.signIn = (Button) scene.lookup("#signIn");
 		this.call = (Button) scene.lookup("#call");
-		this.call.setOnAction(e -> {
-			this.call.setDisable(true);
-			Threads.offTheFxThread(() -> {
-				var body = this.userinfoClient.get();
-				Threads.onTheFxThread(() -> {
-					this.output.setText(body);
-					this.call.setDisable(false);
-				});
-			});
-		});
+
+		// tag::wiring[]
+		this.signIn
+			.setOnAction(_ -> Threads.offTheFxThread(() -> this.login.start(CLIENT_REGISTRATION_ID), this::fail));
+
+		this.call.setOnAction(_ -> Threads.offTheFxThread(() -> {
+			var message = this.messageClient.message();
+			Threads.onTheFxThread(() -> this.output.setText(message.message()));
+		}, this::fail));
+		// end::wiring[]
 
 		var stage = event.stage();
-		stage.setTitle("JavaFX + Spring Boot + GraalVM");
+		stage.setTitle(this.environment.getProperty("app.title"));
 		stage.setScene(scene);
 		stage.setOnHidden(_ -> System.exit(0));
 		stage.show();
 	}
 
+	// tag::signedin[]
 	@EventListener
 	void on(UserSignedInEvent event) {
 		Threads.onTheFxThread(() -> {
@@ -79,8 +82,13 @@ class StageInitializer {
 			this.call.setDisable(false);
 		});
 	}
+	// end::signedin[]
 
-	private String claims(Map<String, Object> claims) {
+	private void fail(Throwable throwable) {
+		this.output.setText(throwable.getMessage());
+	}
+
+	private static String claims(Map<String, Object> claims) {
 		var claimsString = new StringBuilder();
 		var template = "%s: %s" + System.lineSeparator();
 		for (var entry : claims.entrySet())

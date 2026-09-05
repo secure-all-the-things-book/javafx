@@ -14,14 +14,17 @@
     <name/>
     <description/>
     <properties>
-        <main.class>com.example.bootiful_javafx.BootifulJavafxApplication</main.class>
+        <!-- tag::properties[] -->
+        <main.class>com.example.bootiful_javafx.DesktopApplication</main.class>
         <javafx.version>26.0.2</javafx.version>
+        <!-- end::properties[] -->
         <java.version>25</java.version>
         <spring-ai.version>2.0.0</spring-ai.version>
         <spring-cloud.version>2025.1.2</spring-cloud.version>
         <spring-modulith.version>2.1.0</spring-modulith.version>
     </properties>
     <dependencies>
+        <!-- tag::javafx[] -->
         <dependency>
             <groupId>org.openjfx</groupId>
             <artifactId>javafx-controls</artifactId>
@@ -32,6 +35,8 @@
             <artifactId>javafx-fxml</artifactId>
             <version>${javafx.version}</version>
         </dependency>
+        <!-- end::javafx[] -->
+        <!-- tag::boot[] -->
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-restclient</artifactId>
@@ -54,6 +59,7 @@
             <scope>runtime</scope>
             <optional>true</optional>
         </dependency>
+        <!-- end::boot[] -->
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-restclient-test</artifactId>
@@ -69,11 +75,13 @@
             <artifactId>spring-boot-starter-webmvc-test</artifactId>
             <scope>test</scope>
         </dependency>
+        <!-- tag::hints[] -->
         <dependency>
             <groupId>com.joshlong</groupId>
             <artifactId>hints</artifactId>
             <version>0.0.16</version>
         </dependency>
+        <!-- end::hints[] -->
     </dependencies>
     <build>
         <plugins>
@@ -91,6 +99,7 @@
                     </execution>
                 </executions>
             </plugin>
+            <!-- tag::native[] -->
             <plugin>
                 <groupId>org.graalvm.buildtools</groupId>
                 <artifactId>native-maven-plugin</artifactId>
@@ -103,6 +112,7 @@
                     </buildArgs>
                 </configuration>
             </plugin>
+            <!-- end::native[] -->
             <plugin>
                 <groupId>org.springframework.boot</groupId>
                 <artifactId>spring-boot-maven-plugin</artifactId>

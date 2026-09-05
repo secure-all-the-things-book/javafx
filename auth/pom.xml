@@ -33,6 +33,7 @@
         <spring-modulith.version>2.1.0</spring-modulith.version>
     </properties>
     <dependencies>
+        <!-- tag::deps[] -->
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-jdbc</artifactId>
@@ -58,6 +59,7 @@
             <artifactId>postgresql</artifactId>
             <scope>runtime</scope>
         </dependency>
+        <!-- end::deps[] -->
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-jdbc-test</artifactId>

@@ -11,7 +11,7 @@ import org.springframework.boot.test.context.SpringBootTest;
 		"spring.security.oauth2.client.provider.static.user-info-uri=http://localhost:9090/userinfo",
 		"spring.security.oauth2.client.provider.static.jwk-set-uri=http://localhost:9090/oauth2/jwks",
 		"spring.security.oauth2.client.provider.static.user-name-attribute=sub" })
-class BootifulJavafxApplicationTests {
+class DesktopApplicationTests {
 
 	@Test
 	void contextLoads() {
