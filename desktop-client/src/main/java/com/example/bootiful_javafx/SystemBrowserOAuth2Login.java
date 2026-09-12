@@ -19,93 +19,105 @@ import org.springframework.security.oauth2.core.endpoint.*;
 import org.springframework.security.oauth2.core.oidc.OidcIdToken;
 import org.springframework.security.oauth2.core.oidc.endpoint.OidcParameterNames;
 import org.springframework.stereotype.Service;
+import org.springframework.util.Assert;
 
 import java.util.Base64;
 import java.util.Map;
 import java.util.Objects;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicReference;
 
 @Service
 class SystemBrowserOAuth2Login {
 
-	private final StringKeyGenerator state = new Base64StringKeyGenerator(Base64.getUrlEncoder());
+    private final StringKeyGenerator state = new Base64StringKeyGenerator(Base64.getUrlEncoder());
 
-	private final RestClientAuthorizationCodeTokenResponseClient accessTokens = new RestClientAuthorizationCodeTokenResponseClient();
+    private final RestClientAuthorizationCodeTokenResponseClient accessTokens = new RestClientAuthorizationCodeTokenResponseClient();
 
-	private final OidcIdTokenDecoderFactory idTokens = new OidcIdTokenDecoderFactory();
+    private final OidcIdTokenDecoderFactory idTokens = new OidcIdTokenDecoderFactory();
 
-	private final OidcUserService users = new OidcUserService();
+    private final OidcUserService users = new OidcUserService();
 
-	private final ClientRegistrationRepository registrations;
+    private final AtomicReference<SignIn> inFlight = new AtomicReference<>();
 
-	private final OAuth2AuthorizedClientService authorizedClients;
+    private final ClientRegistrationRepository registrations;
 
-	private final AuthorizationBrowser browser;
+    private final OAuth2AuthorizedClientService authorizedClients;
 
-	private final ApplicationEventPublisher events;
+    private final AuthorizationBrowser browser;
 
-	private final AtomicReference<OAuth2AuthorizationRequest> inFlight = new AtomicReference<>();
+    private final ApplicationEventPublisher events;
 
-	SystemBrowserOAuth2Login(ClientRegistrationRepository registrations,
-			OAuth2AuthorizedClientService authorizedClients, AuthorizationBrowser browser,
-			ApplicationEventPublisher events) {
-		this.registrations = registrations;
-		this.authorizedClients = authorizedClients;
-		this.browser = browser;
-		this.events = events;
-	}
+    SystemBrowserOAuth2Login(ClientRegistrationRepository registrations,
+                             OAuth2AuthorizedClientService authorizedClients, AuthorizationBrowser browser,
+                             ApplicationEventPublisher events) {
+        this.registrations = registrations;
+        this.authorizedClients = authorizedClients;
+        this.browser = browser;
+        this.events = events;
+    }
 
-	void start(String registrationId) {
-		var registration = this.registrations.findByRegistrationId(registrationId);
-		var builder = OAuth2AuthorizationRequest.authorizationCode()
-			.clientId(registration.getClientId())
-			.authorizationUri(registration.getProviderDetails().getAuthorizationUri())
-			.redirectUri(registration.getRedirectUri())
-			.scopes(registration.getScopes())
-			.state(state.generateKey());
-		OAuth2AuthorizationRequestCustomizers.withPkce().accept(builder);
-		var request = builder.build();
-		this.inFlight.set(request);
-		this.browser.open(request.getAuthorizationRequestUri());
-	}
+    // hands back a promise of the tokens; `finish` keeps that promise
+    CompletableFuture<OAuth2AuthorizedClient> start(String registrationId) {
+        var registration = this.registrations.findByRegistrationId(registrationId);
+        var builder = OAuth2AuthorizationRequest.authorizationCode()
+                .clientId(registration.getClientId())
+                .authorizationUri(registration.getProviderDetails().getAuthorizationUri())
+                .redirectUri(registration.getRedirectUri())
+                .scopes(registration.getScopes())
+                .state(this.state.generateKey());
+        // a desktop app cannot keep a client secret, so PKCE is what proves
+        // the code is being redeemed by the app that asked for it
+        OAuth2AuthorizationRequestCustomizers.withPkce().accept(builder);
+        var signIn = new SignIn(builder.build(), new CompletableFuture<>());
+        this.inFlight.set(signIn);
+        this.browser.open(signIn.request().getAuthorizationRequestUri());
+        return signIn.tokens();
+    }
 
-	UserSignedInEvent finish(String registrationId, Map<String, String> parameters) {
-		var request = this.inFlight.getAndSet(null);
-		var state1 = parameters.get(OAuth2ParameterNames.STATE);
-		var response = OAuth2AuthorizationResponse.success(parameters.get(OAuth2ParameterNames.CODE))
-			.redirectUri(Objects.requireNonNull(request.getRedirectUri()))
-			.state(state1)
-			.build();
-		var exchange = new OAuth2AuthorizationExchange(request, response);
-		var event = new UserSignedInEvent(exchange(this.registrations.findByRegistrationId(registrationId), exchange));
-		this.events.publishEvent(event);
-		return event;
-	}
+    UserSignedInEvent finish(String registrationId, Map<String, String> parameters) {
+        var signIn = this.inFlight.getAndSet(null);
+        Assert.state(signIn != null, "there is no sign-in waiting for a code");
+        var returnedState = parameters.get(OAuth2ParameterNames.STATE);
+        Assert.state(Objects.equals(signIn.request().getState(), returnedState), "the state parameter does not match");
+        var response = OAuth2AuthorizationResponse.success(parameters.get(OAuth2ParameterNames.CODE))
+                .redirectUri(Objects.requireNonNull(signIn.request().getRedirectUri()))
+                .state(returnedState)
+                .build();
+        var registration = this.registrations.findByRegistrationId(registrationId);
+        var authentication = exchange(registration, new OAuth2AuthorizationExchange(signIn.request(), response));
+        signIn.tokens().complete(this.authorizedClients.loadAuthorizedClient(registrationId, authentication.getName()));
+        var event = new UserSignedInEvent(authentication);
+        this.events.publishEvent(event);
+        return event;
+    }
 
-	private OAuth2AuthenticationToken exchange(ClientRegistration registration, OAuth2AuthorizationExchange exchange) {
-		var tokens = this.accessTokens
-			.getTokenResponse(new OAuth2AuthorizationCodeGrantRequest(registration, exchange));
-		var idToken = this.idToken(registration, tokens);
-		var oidcUserRequest = new OidcUserRequest(registration, tokens.getAccessToken(), idToken,
-				tokens.getAdditionalParameters());
-		var user = this.users.loadUser(oidcUserRequest);
-		var authentication = new OAuth2AuthenticationToken(user, user.getAuthorities(),
-				registration.getRegistrationId());
+    private OAuth2AuthenticationToken exchange(ClientRegistration registration, OAuth2AuthorizationExchange exchange) {
+        var tokens = this.accessTokens
+                .getTokenResponse(new OAuth2AuthorizationCodeGrantRequest(registration, exchange));
+        var request = new OidcUserRequest(registration, tokens.getAccessToken(), idToken(registration, tokens),
+                tokens.getAdditionalParameters());
+        var user = this.users.loadUser(request);
+        var authentication = new OAuth2AuthenticationToken(user, user.getAuthorities(),
+                registration.getRegistrationId());
 
-		// give the token to Spring Security who'll handle refreshing it
-		this.authorizedClients.saveAuthorizedClient(new OAuth2AuthorizedClient(registration, user.getName(),
-				tokens.getAccessToken(), tokens.getRefreshToken()), authentication);
+        // give the tokens to Spring Security, which will refresh them from here on out
+        this.authorizedClients.saveAuthorizedClient(new OAuth2AuthorizedClient(registration, user.getName(),
+                tokens.getAccessToken(), tokens.getRefreshToken()), authentication);
 
-		var context = SecurityContextHolder.getContextHolderStrategy().createEmptyContext();
-		context.setAuthentication(authentication);
-		SecurityContextHolder.getContextHolderStrategy().setContext(context);
-		return authentication;
-	}
+        var context = SecurityContextHolder.getContextHolderStrategy().createEmptyContext();
+        context.setAuthentication(authentication);
+        SecurityContextHolder.getContextHolderStrategy().setContext(context);
+        return authentication;
+    }
 
-	private OidcIdToken idToken(ClientRegistration registration, OAuth2AccessTokenResponse tokens) {
-		var value = (String) tokens.getAdditionalParameters().get(OidcParameterNames.ID_TOKEN);
-		var jwt = this.idTokens.createDecoder(registration).decode(value);
-		return new OidcIdToken(jwt.getTokenValue(), jwt.getIssuedAt(), jwt.getExpiresAt(), jwt.getClaims());
-	}
+    private OidcIdToken idToken(ClientRegistration registration, OAuth2AccessTokenResponse tokens) {
+        var value = (String) tokens.getAdditionalParameters().get(OidcParameterNames.ID_TOKEN);
+        var jwt = this.idTokens.createDecoder(registration).decode(value);
+        return new OidcIdToken(jwt.getTokenValue(), jwt.getIssuedAt(), jwt.getExpiresAt(), jwt.getClaims());
+    }
+
+    private record SignIn(OAuth2AuthorizationRequest request, CompletableFuture<OAuth2AuthorizedClient> tokens) {
+    }
 
 }
