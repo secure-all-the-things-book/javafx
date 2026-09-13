@@ -130,7 +130,6 @@ class SystemBrowserOAuth2Login {
 		return new OidcIdToken(jwt.getTokenValue(), jwt.getIssuedAt(), jwt.getExpiresAt(), jwt.getClaims());
 	}
 
-	// <.>
 	private record SignIn(OAuth2AuthorizationRequest request, CompletableFuture<OAuth2AuthorizedClient> tokens) {
 	}
 

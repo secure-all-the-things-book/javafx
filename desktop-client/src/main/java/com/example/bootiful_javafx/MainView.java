@@ -15,6 +15,7 @@ import org.springframework.stereotype.Component;
 
 import java.util.concurrent.CompletableFuture;
 
+// <.>
 @Component
 class MainView {
 
@@ -22,6 +23,7 @@ class MainView {
 
 	private final AsyncTaskExecutor executor;
 
+	// <.>
 	private Label greeting;
 
 	private Button call;
@@ -59,6 +61,7 @@ class MainView {
 		stage.show();
 	}
 
+	// <.>
 	private void call() {
 		this.call.setDisable(true);
 		this.output.setText("Calling http://localhost:8081/message ...");

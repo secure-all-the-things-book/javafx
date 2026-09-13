@@ -18,6 +18,8 @@
 
 set -euo pipefail
 
+./mvnw spring-javaformat:apply
+
 # ==========================================
 # 0. Platform detection and path hygiene
 # ==========================================

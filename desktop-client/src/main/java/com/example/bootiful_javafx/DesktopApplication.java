@@ -28,7 +28,6 @@ public class DesktopApplication {
 		var applicationContext = new SpringApplicationBuilder(DesktopApplication.class)//
 			.headless(false) //
 			.run(args);
-		// <.>
 		Platform.startup(() -> applicationContext.publishEvent(new StageReadyEvent(new Stage())));
 	}
 
