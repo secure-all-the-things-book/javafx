@@ -8,16 +8,16 @@ import java.util.List;
 @Component
 class SystemBrowser implements AuthorizationBrowser {
 
-    @Override
-    public void open(String authorizationRequestUri) {
-        try {
-            var command = List.of("open", authorizationRequestUri);
-            new ProcessBuilder(command)//
-                    .start();
-        } //
-        catch (IOException e) {
-            throw new RuntimeException(e);
-        }
-    }
+	@Override
+	public void open(String authorizationRequestUri) {
+		try {
+			var command = List.of("open", authorizationRequestUri);
+			new ProcessBuilder(command)//
+				.start();
+		} //
+		catch (IOException e) {
+			throw new RuntimeException(e);
+		}
+	}
 
 }

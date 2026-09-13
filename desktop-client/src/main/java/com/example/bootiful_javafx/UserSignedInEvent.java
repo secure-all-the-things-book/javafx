@@ -6,9 +6,9 @@ import org.springframework.util.StringUtils;
 
 record UserSignedInEvent(OAuth2AuthenticationToken authentication) {
 
-    String name() {
-        var user = (OidcUser) this.authentication.getPrincipal();
-        return StringUtils.hasText(user.getPreferredUsername()) ? user.getPreferredUsername() : user.getName();
-    }
+	String name() {
+		var user = (OidcUser) this.authentication.getPrincipal();
+		return StringUtils.hasText(user.getPreferredUsername()) ? user.getPreferredUsername() : user.getName();
+	}
 
 }

@@ -6,8 +6,7 @@ import org.springframework.web.service.annotation.GetExchange;
 @ClientRegistrationId("javafx")
 interface MessageClient {
 
-    @GetExchange("http://localhost:8081/message")
-    Message message();
+	@GetExchange("http://localhost:8081/message")
+	Message message();
 
 }
-
