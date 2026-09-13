@@ -15,9 +15,6 @@ import org.springframework.stereotype.Component;
 
 import java.util.concurrent.CompletableFuture;
 
-// an ordinary Spring bean that happens to draw a window: constructor
-// injection, application events, and - because it is a bean - anything
-// else you would put on a Spring bean.
 @Component
 class MainView {
 
@@ -36,7 +33,6 @@ class MainView {
         this.executor = applicationTaskExecutor;
     }
 
-    // three controls, and the whole demo: who are you, and what did the API say?
     @EventListener
     void on(StageReadyEvent event) {
         this.greeting = new Label("Nobody is signed in.");
@@ -63,15 +59,11 @@ class MainView {
         stage.show();
     }
 
-    // there is no sign-in button: the call needs a token, so Spring
-    // Security goes and gets one. The work runs on one of Spring Boot's
-    // virtual threads and the result lands back on the JavaFX application
-    // thread, because `Platform::runLater` *is* an `Executor`.
     private void call() {
         this.call.setDisable(true);
         this.output.setText("Calling http://localhost:8081/message ...");
         CompletableFuture.supplyAsync(this.messages::message, this.executor)
-                .handleAsync((message, failure) -> done(message, failure), Platform::runLater);
+                .handleAsync(this::done, Platform::runLater);
     }
 
     private Void done(Message message, Throwable failure) {
