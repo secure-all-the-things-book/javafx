@@ -18,7 +18,6 @@ import org.springframework.security.core.context.SecurityContextHolder;
 		OAuth2ClientWebSecurityAutoConfiguration.class//
 }) //
 	// end::acexclusions[]
-
 public class DesktopApplication {
 
 	public static void main(String[] args) {
